@@ -1,0 +1,34 @@
+# Three regional rl-adapters clustered over NATS, one host port each.
+x-adapter: &adapter
+  build: { context: ../.., dockerfile: deploy/Dockerfile }
+  user: root
+  tmpfs: [/data]
+services:
+  us:
+    <<: *adapter
+    hostname: us
+    ports: ["8081:8080"]
+    environment: &env
+      NODE_ID: rl-us
+      REGION: us
+      RL_TOKEN: local-example-token
+      MAX_WINDOW_SEC: "600"
+      JETSTREAM_DIR: /data/js
+      NATS_CLUSTER_PORT: "6222"
+      NATS_ROUTES: nats-route://us:6222,nats-route://eu:6222,nats-route://ap:6222
+  eu:
+    <<: *adapter
+    hostname: eu
+    ports: ["8082:8080"]
+    environment:
+      <<: *env
+      NODE_ID: rl-eu
+      REGION: eu
+  ap:
+    <<: *adapter
+    hostname: ap
+    ports: ["8083:8080"]
+    environment:
+      <<: *env
+      NODE_ID: rl-ap
+      REGION: ap

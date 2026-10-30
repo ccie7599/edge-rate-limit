@@ -1,0 +1,6 @@
+{
+  "name": "edge-rate-limit-edgeworker",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/*.test.js" }
+}

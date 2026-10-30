@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" role="img" aria-labelledby="t d">
+<title id="t">Edge rate limiter architecture</title>
+<desc id="d">A client request reaches an Akamai EdgeWorker, which builds a hashed key per policy and asks the nearest regional rl-adapter, chosen by GTM, to count the hit. The worker answers 429 or forwards to the origin. Adapters in every region exchange count deltas every 100 ms over NATS JetStream, so each region holds the global count.</desc>
+<style>
+  :root{--bg:#ffffff;--box:#f1f3f6;--inner:#ffffff;--fg:#15181c;--muted:#5d6874;--line:#d5dae0;--accent:#2457d6;--nats:#1f8a6a;--bad:#c62e2e}
+  @media (prefers-color-scheme:dark){:root{--bg:#0d1117;--box:#161b22;--inner:#0d1117;--fg:#e7eaee;--muted:#97a1ac;--line:#30363d;--accent:#6c95ff;--nats:#43c49b;--bad:#ef5f5f}}
+  text{fill:var(--fg);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  .bg{fill:var(--bg)}
+  .box{fill:var(--box);stroke:var(--line)}
+  .inner{fill:var(--inner);stroke:var(--line)}
+  .hi{fill:var(--box);stroke:var(--accent);stroke-width:1.5}
+  .kv{fill:var(--inner);stroke:var(--nats);stroke-width:1.5}
+  .t{font-weight:600;font-size:15px}
+  .b{font-weight:600}
+  .m{fill:var(--muted);font-size:12px}
+  .la{fill:var(--accent);font-weight:600;font-size:12px}
+  .ln{fill:var(--nats);font-weight:600;font-size:12px}
+  .lx{fill:var(--bad);font-weight:600;font-size:12px}
+  .lm{fill:var(--muted);font-weight:600;font-size:12px}
+  .g{stroke:var(--muted);stroke-width:1.5;fill:none}
+  .a{stroke:var(--accent);stroke-width:1.5;fill:none}
+  .n{stroke:var(--nats);stroke-width:1.5;fill:none}
+  .x{stroke:var(--bad);stroke-width:1.5;fill:none}
+  .hg{fill:var(--muted)}.ha{fill:var(--accent)}.hn{fill:var(--nats)}.hx{fill:var(--bad)}
+</style>
+<defs>
+  <marker id="mg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hg" d="M0,0L10,5L0,10z"/></marker>
+  <marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ha" d="M0,0L10,5L0,10z"/></marker>
+  <marker id="mn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hn" d="M0,0L10,5L0,10z"/></marker>
+  <marker id="mx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hx" d="M0,0L10,5L0,10z"/></marker>
+</defs>
+<rect class="bg" width="1000" height="540"/>
+
+<!-- client -->
+<rect class="box" x="16" y="120" width="136" height="100" rx="8"/>
+<text class="t" x="30" y="148">Client</text>
+<text class="m" x="30" y="170">Bearer JWT</text>
+<text class="m" x="30" y="188">Headers, IP</text>
+<text class="m" x="30" y="206">JSON body</text>
+<line class="g" x1="154" y1="150" x2="204" y2="150" marker-end="url(#mg)"/>
+<line class="x" x1="206" y1="192" x2="156" y2="192" marker-end="url(#mx)"/>
+<text class="lx" x="168" y="210">429</text>
+
+<!-- origin -->
+<rect class="box" x="16" y="400" width="136" height="84" rx="8"/>
+<text class="t" x="30" y="430">Origin</text>
+<text class="m" x="30" y="452">Allowed requests</text>
+<text class="m" x="30" y="470">only</text>
+<line class="g" x1="206" y1="440" x2="156" y2="440" marker-end="url(#mg)"/>
+
+<!-- edge -->
+<rect class="hi" x="208" y="24" width="356" height="492" rx="10"/>
+<text class="t" x="228" y="52">Akamai EdgeWorker</text>
+<text class="m" x="228" y="70">On every edge server. Policies ship in the bundle.</text>
+<rect class="inner" x="228" y="84" width="316" height="62" rx="6"/>
+<text class="b" x="242" y="108">1  Match policies</text>
+<text class="m" x="260" y="128">Host, path, method</text>
+<rect class="inner" x="228" y="156" width="316" height="62" rx="6"/>
+<text class="b" x="242" y="180">2  Read the request</text>
+<text class="m" x="260" y="200">JWT claims, POST body, headers, query, IP</text>
+<rect class="inner" x="228" y="228" width="316" height="62" rx="6"/>
+<text class="b" x="242" y="252">3  Build one key per policy</text>
+<text class="m" x="260" y="272">SHA-256, so no token or PII leaves the edge</text>
+<rect class="inner" x="228" y="300" width="316" height="62" rx="6"/>
+<text class="b" x="242" y="324">4  One call counts every matched policy</text>
+<text class="m" x="260" y="344">Timeout or error: fail open</text>
+<rect class="inner" x="228" y="372" width="316" height="62" rx="6"/>
+<text class="b" x="242" y="396">5  Decide</text>
+<text class="m" x="260" y="416">Enforce: 429. Shadow: report only.</text>
+<text class="m" x="228" y="462">Limits, windows and modes live here.</text>
+<text class="m" x="228" y="482">The counters only add up hits.</text>
+
+<!-- edge to region -->
+<line class="a" x1="546" y1="322" x2="636" y2="266" marker-end="url(#ma)"/>
+<line class="a" x1="638" y1="290" x2="548" y2="346" marker-end="url(#ma)"/>
+<text class="la" x="580" y="282">hit</text>
+<text class="la" x="604" y="340">count</text>
+<text class="m" x="574" y="196">GTM picks</text>
+<text class="m" x="574" y="212">the nearest</text>
+<text class="m" x="574" y="228">region</text>
+
+<!-- regions -->
+<rect class="box" x="640" y="24" width="296" height="146" rx="8"/>
+<text class="t" x="656" y="50">Region A</text>
+<rect class="inner" x="656" y="62" width="264" height="44" rx="6"/>
+<text class="b" x="668" y="80">rl-adapter</text>
+<text class="m" x="668" y="97">Sliding-window counters in memory</text>
+<rect class="kv" x="656" y="114" width="264" height="44" rx="6"/>
+<text class="b" x="668" y="132">NATS JetStream</text>
+<text class="m" x="668" y="149">Region's delta stream, on disk for replay</text>
+
+<rect class="hi" x="640" y="200" width="296" height="146" rx="8"/>
+<text class="t" x="656" y="226">Region B <tspan class="m">(nearest to this edge)</tspan></text>
+<rect class="inner" x="656" y="238" width="264" height="44" rx="6"/>
+<text class="b" x="668" y="256">rl-adapter</text>
+<text class="m" x="668" y="273">Sliding-window counters in memory</text>
+<rect class="kv" x="656" y="290" width="264" height="44" rx="6"/>
+<text class="b" x="668" y="308">NATS JetStream</text>
+<text class="m" x="668" y="325">Region's delta stream, on disk for replay</text>
+
+<rect class="box" x="640" y="376" width="296" height="146" rx="8"/>
+<text class="t" x="656" y="402">Region C</text>
+<rect class="inner" x="656" y="414" width="264" height="44" rx="6"/>
+<text class="b" x="668" y="432">rl-adapter</text>
+<text class="m" x="668" y="449">Sliding-window counters in memory</text>
+<rect class="kv" x="656" y="466" width="264" height="44" rx="6"/>
+<text class="b" x="668" y="484">NATS JetStream</text>
+<text class="m" x="668" y="501">Region's delta stream, on disk for replay</text>
+
+<!-- replication -->
+<line class="n" x1="788" y1="172" x2="788" y2="198" marker-start="url(#mn)" marker-end="url(#mn)"/>
+<line class="n" x1="788" y1="348" x2="788" y2="374" marker-start="url(#mn)" marker-end="url(#mn)"/>
+<path class="n" d="M938,97 H966 V449 H938" marker-start="url(#mn)" marker-end="url(#mn)"/>
+<text class="ln" x="800" y="190">deltas every 100 ms</text>
+<text class="ln" x="800" y="366">read by every region</text>
+</svg>
